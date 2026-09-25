@@ -9,6 +9,7 @@ import AdminClientList from './pages/AdminClientList';
 import TemplateDeliverables from './pages/TemplateDeliverables';
 import TemplateExpectations from './pages/TemplateExpectations';
 import AdminContacts from './pages/AdminContacts';
+import AdminManagers from './pages/AdminManagers';
 import { NAV_ITEMS } from './data';
 import { useDraftEditor } from './hooks/useDraftEditor';
 import Overview from './pages/Overview';
@@ -30,6 +31,7 @@ const ADMIN_NAV_ITEMS = [
   { id: 'template-deliverables', label: 'Deliverables Template' },
   { id: 'template-expectations', label: 'What to Expect Template' },
   { id: 'contacts', label: 'Contacts' },
+  { id: 'managers', label: 'Team Accounts' },
 ];
 
 // Shared contact fields tracked for the diff-on-Done save (see handleDoneEditingContacts).
@@ -400,6 +402,34 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ensureContactPoolLoaded already no-ops once cached
   }, [authUser, selectedClientId, adminSection]);
+
+  // Manager (39N staff) accounts -- the admin-level "Team Accounts" screen. Fetched lazily the
+  // first time that screen is opened, same pattern as the contact pool above.
+  const [managers, setManagers] = useState(null);
+  const [managersLoading, setManagersLoading] = useState(false);
+  const [managersError, setManagersError] = useState(null);
+  useEffect(() => {
+    if (authUser?.role === 'manager' && !selectedClientId && adminSection === 'managers' && !managers) {
+      setManagersLoading(true);
+      setManagersError(null);
+      api.getManagers()
+        .then(setManagers)
+        .catch((err) => setManagersError(err.message || 'Failed to load accounts.'))
+        .finally(() => setManagersLoading(false));
+    }
+  }, [authUser, selectedClientId, adminSection, managers]);
+  const handleAddManager = async (fields) => {
+    const created = await api.addManager(fields);
+    setManagers((current) => [...(current || []), created]);
+  };
+  const handleUpdateManager = async (id, patch) => {
+    const updated = await api.updateManager(id, patch);
+    setManagers((current) => (current || []).map((manager) => (manager.id === id ? updated : manager)));
+  };
+  const handleRemoveManager = async (id) => {
+    await api.removeManager(id);
+    setManagers((current) => (current || []).filter((manager) => manager.id !== id));
+  };
 
   const handleAddPoolContact = async (fields) => {
     const created = await api.addPoolContact(fields);
@@ -894,6 +924,17 @@ function App() {
               onAdd={handleAddPoolContact}
               onUpdate={handleUpdatePoolContact}
               onRemove={handleRemovePoolContact}
+            />
+          )}
+          {adminSection === 'managers' && (
+            <AdminManagers
+              managers={managers || []}
+              loading={managersLoading}
+              error={managersError}
+              currentUserId={authUser.id}
+              onAdd={handleAddManager}
+              onUpdate={handleUpdateManager}
+              onRemove={handleRemoveManager}
             />
           )}
         </main>

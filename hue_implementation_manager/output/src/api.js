@@ -113,6 +113,10 @@ export const api = {
     request(`/api/clients/${clientId}/contacts/${contactId}/users`, { method: 'PATCH', body: JSON.stringify(credentials) }),
   removeContactLogin: (clientId, contactId) =>
     request(`/api/clients/${clientId}/contacts/${contactId}/users`, { method: 'DELETE' }),
+  getManagers: () => request('/api/users'),
+  addManager: (fields) => request('/api/users', { method: 'POST', body: JSON.stringify(fields) }),
+  updateManager: (id, patch) => request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  removeManager: (id) => request(`/api/users/${id}`, { method: 'DELETE' }),
 };
 
 export { ApiError };

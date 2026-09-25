@@ -49,6 +49,84 @@ const SIGNATURE_STATUSES = ['none', 'needs-signature', 'signed'];
 
 registerAuthRoutes(app);
 
+// Manager account management -- any signed-in manager can create/reset/remove another manager's
+// login (there's no tiered "owner" role, matching how the rest of the app has no permission
+// granularity beyond manager/client). Admin-set passwords only, same as contact logins -- no
+// self-service signup or password reset. Scoped to role = 'manager' only; client-role logins are
+// managed via the contact-attached endpoints above, not this one.
+app.get('/api/users', requireManager, async (req, res) => {
+  const result = await pool.query(
+    "select id, email, display_name, created_at from users where role = 'manager' order by display_name"
+  );
+  res.json(result.rows);
+});
+
+app.post('/api/users', requireManager, async (req, res) => {
+  const { email, displayName, password } = req.body;
+  if (!email || !displayName || !password) return res.status(400).json({ error: 'email, displayName, and password are required' });
+  if (password.length < 8) return res.status(400).json({ error: 'password must be at least 8 characters' });
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  try {
+    const result = await pool.query(
+      `insert into users (email, password_hash, role, display_name) values ($1, $2, 'manager', $3)
+       returning id, email, display_name, created_at`,
+      [email, passwordHash, displayName]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A login with this email already exists' });
+    throw err;
+  }
+});
+
+app.patch('/api/users/:id', requireManager, async (req, res) => {
+  const { id } = req.params;
+  const { displayName, email, password } = req.body;
+  const setClauses = [];
+  const values = [];
+  if (displayName) {
+    values.push(displayName);
+    setClauses.push(`display_name = $${values.length}`);
+  }
+  if (email) {
+    values.push(email);
+    setClauses.push(`email = $${values.length}`);
+  }
+  if (password) {
+    if (password.length < 8) return res.status(400).json({ error: 'password must be at least 8 characters' });
+    values.push(await bcrypt.hash(password, 10));
+    setClauses.push(`password_hash = $${values.length}`);
+  }
+  if (setClauses.length === 0) return res.status(400).json({ error: 'No recognized fields in request body' });
+
+  values.push(id);
+  try {
+    const result = await pool.query(
+      `update users set ${setClauses.join(', ')} where id = $${values.length} and role = 'manager'
+       returning id, email, display_name, created_at`,
+      values
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A login with this email already exists' });
+    throw err;
+  }
+});
+
+app.delete('/api/users/:id', requireManager, async (req, res) => {
+  const { id } = req.params;
+  if (id === req.session.user.id) return res.status(400).json({ error: 'You cannot remove your own account while signed in as it' });
+
+  const countResult = await pool.query("select count(*)::int as count from users where role = 'manager'");
+  if (countResult.rows[0].count <= 1) return res.status(400).json({ error: 'At least one manager account must remain' });
+
+  const result = await pool.query("delete from users where id = $1 and role = 'manager'", [id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.status(204).send();
+});
+
 // The admin client list -- manager-only. Enough to render a picker (name + effective date);
 // anything more detailed is a click away via GET /api/clients/:id.
 app.get('/api/clients', requireManager, async (req, res) => {
