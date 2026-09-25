@@ -34,11 +34,12 @@ status and come back to reference material later in the plan year.
   specific contact record, not shared per client. Multiple people at one employer, or one broker
   working across several clients, each get their own separate login. Passwords are set by a
   manager from the admin portal -- there is no self-service signup or password reset flow.
-- **Documents** currently live on local disk (`uploads/`, via multer) with just a filename stored
-  in `client_documents.storage_path`. **This does not survive a deploy to a platform with an
-  ephemeral filesystem** (most PaaS targets wipe local disk on redeploy) -- confirm the deploy
-  target has a persistent volume, or swap this for object storage (S3-compatible), before
-  uploading real client documents.
+- **Documents** live on local disk (`uploads/`, via multer, 25MB per-file limit) with just a
+  filename stored in `client_documents.storage_path`. This is deployed on a VPS with a persistent
+  filesystem (not an ephemeral-disk PaaS), so local disk storage is the intended, permanent
+  approach here -- not a placeholder. That does mean `uploads/` is real data now, same as the
+  database: make sure whatever backs up the database also backs up `uploads/`, since a document
+  only exists on that one disk.
 
 ## Prerequisites
 
@@ -107,8 +108,8 @@ Before pointing this at real client data or a real domain:
 
 1. Set `CORS_ORIGIN` to the real frontend domain(s) (e.g. `https://39n.co,https://www.39n.co`).
 2. Set `NODE_ENV=production` so session cookies are sent `secure`.
-3. Confirm the deploy target's filesystem is persistent, or migrate document storage to something
-   that is (see the Documents note above) -- otherwise uploaded files will disappear on redeploy.
+3. Include `uploads/` in whatever backs up the database -- it's the permanent home for document
+   files on this VPS deploy (see the Documents note above), not a temporary cache.
 4. Create real manager/client accounts (there's no self-service signup; a manager creates each
    login from the admin portal or `db/seed-users.cjs`-style script) and retire the two fictional
    test accounts.
