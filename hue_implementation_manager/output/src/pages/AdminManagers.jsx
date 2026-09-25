@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PasswordToggleInput } from '../components/fields';
 
 const BLANK_FORM = { displayName: '', email: '', password: '' };
 
@@ -148,7 +149,7 @@ export default function AdminManagers({ managers, loading, error, currentUserId,
               </label>
               <label className="modal-field">
                 <span>{editingId ? 'New password (leave blank to keep current)' : 'Password'}</span>
-                <input type="password" value={formState.password} onChange={setField('password')} placeholder="At least 8 characters" />
+                <PasswordToggleInput value={formState.password} onChange={setField('password')} placeholder="At least 8 characters" />
               </label>
 
               {modalError && <div className="edit-status error">{modalError}</div>}

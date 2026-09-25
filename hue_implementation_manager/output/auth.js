@@ -58,8 +58,11 @@ function registerAuthRoutes(app) {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
 
+    // Email is case-insensitive (matches how virtually every real login system behaves -- a typo
+    // in capitalization shouldn't lock someone out); the password comparison below stays
+    // case-sensitive via bcrypt, unaffected by this.
     const result = await pool.query(
-      'select id, email, password_hash, role, client_id, display_name from users where email = $1',
+      'select id, email, password_hash, role, client_id, display_name from users where lower(email) = lower($1)',
       [email]
     );
     const row = result.rows[0];

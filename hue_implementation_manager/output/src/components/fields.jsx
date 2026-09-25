@@ -1,5 +1,44 @@
 import { useState } from 'react';
 
+// A password <input> with a right-side eyeball button to toggle it between masked and plain
+// text -- unlike MaskedFieldInput below, this wraps a live editable input (login, account
+// passwords), not a read-only display value.
+export function PasswordToggleInput({ id, className, value, onChange, autoComplete, placeholder, required }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="password-input-wrapper">
+      <input
+        id={id}
+        className={className}
+        type={visible ? 'text' : 'password'}
+        autoComplete={autoComplete}
+        placeholder={placeholder}
+        required={required}
+        value={value}
+        onChange={onChange}
+      />
+      <button
+        type="button"
+        className="password-toggle-button"
+        onClick={() => setVisible((current) => !current)}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        tabIndex={-1}
+      >
+        {visible ? (
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z M9.9 9.9a3 3 0 0 0 4.2 4.2 M3 3l18 18" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+}
+
 export function EditableFieldInput({ label, value, onChange, type = 'text', isEditing = false, hint }) {
   if (!isEditing) {
     return (

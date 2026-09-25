@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import logo from '../assets/logo-39n.png';
 import { api, ApiError } from '../api';
+import { PasswordToggleInput } from '../components/fields';
 
 export default function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -44,10 +45,9 @@ export default function LoginScreen({ onLogin }) {
 
         <div className="field-block">
           <label htmlFor="login-password">Password</label>
-          <input
+          <PasswordToggleInput
             id="login-password"
             className="field-input"
-            type="password"
             autoComplete="current-password"
             required
             value={password}
