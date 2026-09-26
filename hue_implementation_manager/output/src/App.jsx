@@ -131,6 +131,14 @@ function App() {
     setActiveSection('overview');
     setSelectedClientId(created.id);
   };
+  const handleUpdateClientStatus = async (id, status) => {
+    await api.updateClient(id, { status });
+    setClientList((current) => current.map((client) => (client.id === id ? { ...client, status } : client)));
+  };
+  const handleDeleteClient = async (id) => {
+    await api.removeClient(id);
+    setClientList((current) => current.filter((client) => client.id !== id));
+  };
 
   // The deliverables template -- only fetched while the admin is actually looking at it, and
   // refreshed every time they return to it, same pattern as the client list above.
@@ -892,6 +900,8 @@ function App() {
                 setSelectedClientId(id);
               }}
               onCreateClient={handleCreateClient}
+              onUpdateStatus={handleUpdateClientStatus}
+              onDeleteClient={handleDeleteClient}
             />
           )}
           {adminSection === 'template-deliverables' && (

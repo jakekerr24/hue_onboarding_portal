@@ -131,9 +131,43 @@ app.delete('/api/users/:id', requireManager, async (req, res) => {
 // anything more detailed is a click away via GET /api/clients/:id.
 app.get('/api/clients', requireManager, async (req, res) => {
   const result = await pool.query(
-    'select id, plan_sponsor_name, effective_date, created_at from clients order by plan_sponsor_name'
+    'select id, plan_sponsor_name, effective_date, status, created_at from clients order by plan_sponsor_name'
   );
   res.json(result.rows);
+});
+
+// Hard delete -- reserved for genuine junk/test entries, not real former clients (those should be
+// marked status: 'inactive' via the PATCH endpoint above instead, which keeps their implementation
+// history intact). Deletes the client's uploaded files from disk first (client_documents rows are
+// about to cascade away with the client, taking the only record of those filenames with them),
+// then removes any client-role logins tied to this client (users.client_id has no FK cascade, so
+// leaving them would either orphan a login or block the delete with a constraint violation),
+// then the client row itself -- client_deliverables/client_expectations/client_contacts all
+// cascade automatically. The client's contacts/broker themselves are never deleted, only detached,
+// same as removing one contact at a time from an active client.
+app.delete('/api/clients/:id', requireManager, async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const docsResult = await client.query('select storage_path from client_documents where client_id = $1', [id]);
+    await client.query('delete from users where client_id = $1', [id]);
+    const deleteResult = await client.query('delete from clients where id = $1', [id]);
+    if (deleteResult.rowCount === 0) {
+      await client.query('rollback');
+      return res.status(404).json({ error: 'Not found' });
+    }
+    await client.query('commit');
+    for (const doc of docsResult.rows) {
+      if (doc.storage_path) fs.unlink(path.join(UPLOADS_DIR, doc.storage_path), () => {});
+    }
+    res.status(204).send();
+  } catch (err) {
+    await client.query('rollback');
+    throw err;
+  } finally {
+    client.release();
+  }
 });
 
 // Returns one client with everything the portal needs in a single call: the client record,
@@ -185,6 +219,7 @@ const CLIENT_PATCH_FIELDS = {
   hpNetwork: 'hp_network',
   nationalNetwork: 'national_network',
   notes: 'notes',
+  status: 'status',
   brokerId: 'broker_id',
   brokerNotes: 'broker_notes',
   vendorIntegrationRequired: 'vendor_integration_required',
@@ -418,6 +453,9 @@ app.post('/api/template/expectations/:id/reorder', requireManager, async (req, r
 // role (canEdit on the frontend is derived from the same role check).
 app.patch('/api/clients/:id', requireManager, async (req, res) => {
   const { id } = req.params;
+  if ('status' in req.body && !['active', 'inactive'].includes(req.body.status)) {
+    return res.status(400).json({ error: 'status must be "active" or "inactive"' });
+  }
   const setClauses = [];
   const values = [];
   for (const [key, column] of Object.entries(CLIENT_PATCH_FIELDS)) {
@@ -495,6 +533,20 @@ app.patch('/api/brokers/:id', requireManager, async (req, res) => {
   );
   if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(result.rows[0]);
+});
+
+// Same reasoning as DELETE /api/contacts/:id below -- never silently cascade a delete across
+// every client that happens to reference this broker, require detaching (linking a different
+// broker, or none) from each client first.
+app.delete('/api/brokers/:id', requireManager, async (req, res) => {
+  const { id } = req.params;
+  const attached = await pool.query('select count(*)::int as count from clients where broker_id = $1', [id]);
+  if (attached.rows[0].count > 0) {
+    return res.status(409).json({ error: 'This broker is still linked to one or more clients. Unlink it from each client first.' });
+  }
+  const result = await pool.query('delete from brokers where id = $1', [id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.status(204).send();
 });
 
 // Contacts are a reusable/shared library (like brokers) -- client_contacts is just the

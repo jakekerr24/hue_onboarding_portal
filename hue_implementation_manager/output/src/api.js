@@ -58,9 +58,11 @@ export const api = {
   createClient: (fields) => request('/api/clients', { method: 'POST', body: JSON.stringify(fields) }),
   getClient: (id) => request(`/api/clients/${id}`),
   updateClient: (id, patch) => request(`/api/clients/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  removeClient: (id) => request(`/api/clients/${id}`, { method: 'DELETE' }),
   updateBroker: (id, patch) => request(`/api/brokers/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   getBrokers: () => request('/api/brokers'),
   createBroker: (fields) => request('/api/brokers', { method: 'POST', body: JSON.stringify(fields) }),
+  removeBroker: (id) => request(`/api/brokers/${id}`, { method: 'DELETE' }),
   addClientContact: (clientId, contact) =>
     request(`/api/clients/${clientId}/contacts`, { method: 'POST', body: JSON.stringify(contact) }),
   updateClientContact: (clientId, contactId, patch) =>
